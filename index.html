@@ -1273,19 +1273,174 @@
 </div>
 
 <script>
-  function openResume() {
-    const modal = document.getElementById('resumeModal');
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
-    modal.onclick = function(e) { if (e.target === modal) closeResume(); };
+const API_BASE = "http://localhost:5000/api";
+let CURRENT_VISITOR_ID = null;
+
+// ---------------- VISITOR TRACKING ----------------
+async function trackVisitor() {
+  try {
+    const response = await fetch(`${API_BASE}/visitors`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        browser: navigator.userAgent,
+        device: /Mobi|Android/i.test(navigator.userAgent) ? "Mobile" : "Desktop",
+        os: navigator.platform,
+        country: null,
+        city: null
+      })
+    });
+
+    const result = await response.json();
+    if (result?.data?.id) {
+      CURRENT_VISITOR_ID = result.data.id;
+      localStorage.setItem("visitorId", CURRENT_VISITOR_ID);
+    }
+  } catch (err) {
+    console.log(err);
   }
-  function closeResume() {
-    document.getElementById('resumeModal').style.display = 'none';
-    document.body.style.overflow = '';
+}
+
+// ---------------- PAGE TRACKING ----------------
+async function trackPageView(pageName) {
+  try {
+    const visitorId =
+      CURRENT_VISITOR_ID || localStorage.getItem("visitorId");
+
+    if (!visitorId) return;
+
+    await fetch(`${API_BASE}/analytics/page-view`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        visitorId: Number(visitorId),
+        pageName,
+        timeSpent: 0,
+        clickCount: 1,
+        referrer: document.referrer || "direct"
+      })
+    });
+  } catch (err) {
+    console.log(err);
   }
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeResume();
-  });
+}
+
+// ---------------- RESUME TRACKING ----------------
+async function trackResumeDownload() {
+  try {
+    const visitorId =
+      CURRENT_VISITOR_ID || localStorage.getItem("visitorId");
+
+    if (!visitorId) return;
+
+    await fetch(`${API_BASE}/analytics/download`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        visitorId: Number(visitorId),
+        downloadType: "resume"
+      })
+    });
+  } catch (err) {
+    console.log(err);
+  }
+}
+
+// ---------------- CONTACT FORM ----------------
+async function sendMessage(name, email, subject, message) {
+  try {
+    const response = await fetch(`${API_BASE}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        subject,
+        message
+      })
+    });
+
+    return await response.json();
+  } catch (err) {
+    console.log(err);
+  }
+}
+
+// ---------------- PAGE LOAD ----------------
+window.addEventListener("load", async () => {
+  await trackVisitor();
+});
+
+// ---------------- SECTION TRACKING ----------------
+document.querySelectorAll("section").forEach((section) => {
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          trackPageView(entry.target.id);
+        }
+      });
+    },
+    { threshold: 0.45 }
+  );
+
+  observer.observe(section);
+});
+
+// ---------------- REPLACE EXISTING openResume() ----------------
+function openResume() {
+  trackResumeDownload();
+
+  const modal = document.getElementById("resumeModal");
+  if (modal) {
+    modal.style.display = "block";
+  }
+}
+
+// ---------------- ADD closeResume() IF NOT PRESENT ----------------
+function closeResume() {
+  const modal = document.getElementById("resumeModal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+}
+
+// ---------------- OPTIONAL CONTACT FORM HANDLER ----------------
+async function handleContactSubmit(e) {
+  e.preventDefault();
+
+  const name = document.getElementById("name")?.value;
+  const email = document.getElementById("email")?.value;
+  const subject = document.getElementById("subject")?.value;
+  const message = document.getElementById("message")?.value;
+
+  if (!name || !email || !message) {
+    alert("Fill required fields");
+    return;
+  }
+
+  const result = await sendMessage(
+    name,
+    email,
+    subject || "",
+    message
+  );
+
+  if (result?.success) {
+    alert("Message sent successfully");
+    e.target.reset();
+  } else {
+    alert("Failed to send message");
+  }
+}
 </script>
 
 </body>
