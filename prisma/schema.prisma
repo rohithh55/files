@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  createdAt DateTime @default(now())
+
+  @@map("messages")
+}
+
+model Visitor {
+  id           Int        @id @default(autoincrement())
+  visitorUuid  String     @unique
+  ipAddress    String?
+  browser      String?
+  device       String?
+  os           String?
+  country      String?
+  city         String?
+  createdAt    DateTime   @default(now())
+  pageVisits   PageVisit[]
+  downloads    Download[]
+
+  @@map("visitors")
+}
+
+model PageVisit {
+  id         Int      @id @default(autoincrement())
+  visitorId  Int
+  pageName   String
+  timeSpent  Int?
+  clickCount Int?     @default(0)
+  referrer   String?
+  visitedAt  DateTime @default(now())
+
+  visitor Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@map("page_visits")
+}
+
+model Download {
+  id           Int      @id @default(autoincrement())
+  visitorId    Int
+  downloadType String
+  createdAt    DateTime @default(now())
+
+  visitor Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@map("downloads")
+}
